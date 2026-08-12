@@ -24,27 +24,30 @@ Highlight any movie or show title in a comment, caption, headline, or article �
 🎨 Result cards
 Draggable: grab the grip handle to reposition the result card anywhere on screen.
 Dark/light theme toggle for the cards themselves, independent of the popup UI.
+
 🗄️ Movie database
 Switch freely between OMDb and TMDB as your data source.
 Both API keys are remembered, so you can flip providers anytime without re-entering anything.
+
 ⚙️ Settings
 Clean, card-based settings screen that slides in over the main view (no page reload, no clutter).
 API keys are masked by default (password-style) with a show/hide toggle per field.
 Every feature has inline, expandable explanations — nothing is hidden behind jargon, but nothing clutters the main view either.
+
 🔒 Privacy
 All API keys and preferences are stored locally via chrome.storage.sync — never on a third-party server.
 Tesseract OCR never sends anything off-device.
 Poster images are only sent externally if you explicitly enable Gemini (or the optional OCR.space fallback), using your own API key.
+
 🚀 Installation
 Clone or download this repository.
 Open chrome://extensions in Chrome (or any Chromium-based browser — Edge, Brave, etc.).
 Enable Developer mode (top-right toggle).
 Click Load unpacked and select the CineLenz folder.
 Pin the extension for quick access.
+
 🔑 Setup
-
 CineLenz is fully bring-your-own-key — nothing works out of the box until you add at least one:
-
 Service	Used for	Free tier	Get a key
 OMDb or TMDB	Movie/show ratings & metadata	Yes	Pick one in Settings → Movie Database
 Gemini (optional)	More accurate OCR on stylized posters	Yes	Settings → Poster OCR Engine
