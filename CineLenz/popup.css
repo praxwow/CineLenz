@@ -1,0 +1,933 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 380px;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: #0f0f0f;
+  color: #e0e0e0;
+}
+
+.container {
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Header ──────────────────────────────────────────
+   .header-titles is flex:1, so it naturally absorbs the free
+   space in the row and pushes .header-icons flush to the right
+   edge — no margin-left:auto hacks needed. */
+.header,
+.settings-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #262626;
+}
+
+.logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  flex: 0 0 auto;
+}
+
+.logo-sm {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+}
+
+.header-titles {
+  flex: 1;
+  min-width: 0;
+}
+
+.header-titles h1 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.tagline {
+  font-size: 11px;
+  color: #888;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tagline-accent {
+  color: #f5c518;
+  font-weight: 600;
+}
+
+.header-icons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+/* The "i" (How to Use) button only applies to the main screen — once the
+   gear morphs into the back arrow for Settings, hide it so the header
+   just shows Back + Coffee, matching the single shared-header design. */
+.container.settings-open .header-icons > .info-btn {
+  display: none;
+}
+
+.header-icon-btn {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #2a2a2a;
+  border-radius: 11px;
+  background: #161616;
+  color: #999;
+  font-size: 17px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.header-icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.header-icon-btn:hover,
+.header-icon-btn.active {
+  border-color: #f5c518;
+  color: #f5c518;
+  background: rgba(245, 197, 24, 0.1);
+}
+
+/* The header "i" (How to Use) and settings-screen back arrow are also
+   .info-btn / plain buttons — this combined selector wins over the
+   circular .info-btn base styling below via specificity, no ordering
+   dependency needed. */
+.header-icon-btn.info-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  font-size: 0;
+  font-style: normal;
+  font-family: inherit;
+  border: 1px solid #2a2a2a;
+  background: #161616;
+  color: #999;
+}
+
+.header-icon-btn.info-btn:hover,
+.header-icon-btn.info-btn.active {
+  border-color: #f5c518;
+  color: #f5c518;
+  background: rgba(245, 197, 24, 0.1);
+}
+
+/* ── Card-stack screens ──────────────────────────────
+   #mainView and #settingsView are two full-width "cards".
+   Only one occupies document flow at a time (the other carries
+   [hidden]), so the popup's height always matches whichever
+   screen is showing instead of both stacking inline.
+
+   Two separate classes drive this, on purpose:
+   - .settings-active controls LAYOUT (#mainView goes position:absolute)
+     and is applied the instant opening starts, but only removed AFTER
+     the closing animation fully finishes (see popup.js). This is what
+     guarantees only one screen is ever in document flow at a time —
+     without it, closing would briefly put both screens back in flow
+     simultaneously (mainView returning to static immediately while
+     settingsView is still fading out), which is what caused a
+     transient over-tall popup and a scrollbar on the way back.
+   - .settings-open controls the opacity/transform animation targets
+     and toggles immediately in both directions for a responsive feel. */
+.screen {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  opacity: 1;
+  transform: translateX(0);
+}
+
+#settingsView {
+  opacity: 0;
+  transform: translateX(18px);
+}
+
+.container.settings-active #mainView {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 0 16px;
+  pointer-events: none;
+}
+
+.container.settings-open #mainView {
+  opacity: 0;
+  transform: translateX(-18px);
+}
+
+.container.settings-open #settingsView {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* ── Cards ───────────────────────────────────────────── */
+.card {
+  background: #141414;
+  border: 1px solid #242424;
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+.card-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Whole-row-clickable cards (Activation Combo, Privacy) reuse the
+   .info-btn accordion mechanism in popup.js — no extra JS needed,
+   just visually reshaped from a small circle into a full row. */
+.card-row-btn.info-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16px;
+  margin: 0;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-style: normal;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card-row-btn.info-btn:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.card:has(.card-row-btn) {
+  padding: 0;
+}
+
+.card:has(.card-row-btn) > .info-detail {
+  margin: 0 16px 16px;
+}
+
+.card-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f0f0f0;
+}
+
+.card-title-green {
+  color: #4ade80;
+}
+
+.card-desc {
+  font-size: 12px;
+  color: #888;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.card-control {
+  flex: 0 0 auto;
+}
+
+.intro-card .card-title {
+  color: #f5c518;
+  font-size: 15px;
+}
+
+.privacy-card-settings {
+  background: rgba(74, 222, 128, 0.06);
+  border-color: rgba(74, 222, 128, 0.2);
+}
+
+.privacy-text {
+  color: #4ade80;
+}
+
+/* ── Icon badges ─────────────────────────────────────── */
+.icon-badge {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(245, 197, 24, 0.12);
+  border: 1px solid rgba(245, 197, 24, 0.28);
+  color: #f5c518;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-badge svg {
+  width: 20px;
+  height: 20px;
+}
+
+.icon-badge-sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+}
+
+.icon-badge-sm svg {
+  width: 16px;
+  height: 16px;
+}
+
+.icon-badge-green {
+  background: rgba(74, 222, 128, 0.12);
+  border-color: rgba(74, 222, 128, 0.3);
+  color: #4ade80;
+}
+
+.icon-badge-text {
+  font-weight: 700;
+  font-size: 14px;
+  font-style: italic;
+}
+
+/* ── Chevron / "Learn more" affordances ──────────────── */
+.chevron {
+  width: 18px;
+  height: 18px;
+  color: #555;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.card-row-btn:hover .chevron {
+  color: #f5c518;
+}
+
+.info-btn.active .chevron {
+  transform: rotate(90deg);
+  color: #f5c518;
+}
+
+.learn-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #f5c518;
+  white-space: nowrap;
+}
+
+.learn-more svg {
+  width: 14px;
+  height: 14px;
+  color: inherit;
+}
+
+/* ── Section heading (used inside Settings cards) ────── */
+.section-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-heading label {
+  margin-bottom: 0;
+}
+
+/* ── Form controls ───────────────────────────────────── */
+.provider-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.radio-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  padding: 9px 10px;
+  border: 1px solid #333;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #ccc;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  margin-bottom: 0;
+}
+
+.radio-pill input {
+  width: auto;
+  margin: 0;
+  accent-color: #f5c518;
+}
+
+.radio-pill:has(input:checked) {
+  border-color: #f5c518;
+  background: rgba(245, 197, 24, 0.1);
+  color: #f5c518;
+}
+
+.provider-key {
+  margin-top: 8px;
+}
+
+.provider-key.is-inactive {
+  display: none;
+}
+
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 6px;
+  color: #aaa;
+}
+
+input[type="text"],
+input[type="password"],
+select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #3a3a3a;
+  border-radius: 10px;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  transition: border 0.2s;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+select:focus {
+  border-color: #f5c518;
+}
+
+input::placeholder {
+  color: #666;
+}
+
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.model-select-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.model-select-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+.model-select-row button {
+  flex: 0 0 auto;
+  width: 38px;
+  padding: 0;
+  border: 1px solid #3a3a3a;
+  border-radius: 10px;
+  background: #1a1a1a;
+  color: #f5c518;
+  font-size: 16px;
+  cursor: pointer;
+  transition: transform 0.15s, border 0.2s;
+}
+
+.model-select-row button:hover {
+  border-color: #f5c518;
+}
+
+.model-select-row button.spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+small {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #888;
+}
+
+small:empty {
+  display: none;
+}
+
+small a {
+  color: #f5c518;
+  text-decoration: none;
+}
+
+.key-input-wrap {
+  position: relative;
+}
+
+.key-input-wrap input {
+  padding-right: 38px;
+  /* Password-style dots hide the key at rest; letter-spacing keeps the
+     dots evenly readable as a masked string rather than cramped. */
+  letter-spacing: 1px;
+}
+
+.key-toggle-visibility {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #888;
+  opacity: 0.7;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+
+.key-toggle-visibility svg {
+  width: 16px;
+  height: 16px;
+}
+
+.key-toggle-visibility:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.key-toggle-visibility.active {
+  opacity: 1;
+  color: #f5c518;
+}
+
+.get-key-link {
+  font-size: 11px;
+  color: #f5c518;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.get-key-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Buttons ─────────────────────────────────────────── */
+button {
+  margin-top: 10px;
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  background: #f5c518;
+  color: #000;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+.save-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.save-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.status {
+  margin-top: 4px;
+  font-size: 12px;
+  min-height: 0;
+}
+
+.status:empty {
+  margin-top: 0;
+}
+
+.status.success {
+  color: #4ade80;
+}
+
+.status.error {
+  color: #f87171;
+}
+
+/* ── Toggle switch ───────────────────────────────────── */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #3a3a3a;
+  border-radius: 24px;
+  transition: 0.3s;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+
+input:checked + .slider {
+  background-color: #f5c518;
+}
+
+input:checked + .slider:before {
+  transform: translateX(20px);
+}
+
+/* ── Inline info-btn (small "i" circle used inside rows) ─ */
+.label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.label-row label {
+  margin-bottom: 0;
+}
+
+.info-btn {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #444;
+  border-radius: 50%;
+  background: transparent;
+  color: #888;
+  font-size: 11px;
+  font-weight: 700;
+  font-style: italic;
+  font-family: Georgia, 'Times New Roman', serif;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.info-btn:hover {
+  border-color: #f5c518;
+  color: #f5c518;
+}
+
+.info-btn.active {
+  border-color: #f5c518;
+  background: rgba(245, 197, 24, 0.15);
+  color: #f5c518;
+}
+
+/* ── Expandable info/detail content ──────────────────── */
+.info-detail {
+  margin: -2px 0 10px;
+  padding: 8px 10px;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-left: 2px solid #f5c518;
+  border-radius: 6px;
+  animation: infoDetailIn 0.15s ease-out;
+}
+
+.how-to-use-card {
+  margin: 0 0 12px;
+  padding: 12px;
+}
+
+.info-detail small {
+  margin-top: 0;
+  color: #aaa;
+}
+
+.info-detail h3 {
+  font-size: 13px;
+  color: #f5c518;
+  margin-bottom: 8px;
+}
+
+.info-detail ol {
+  padding-left: 16px;
+  font-size: 12px;
+  color: #bbb;
+  line-height: 1.6;
+}
+
+.info-detail kbd {
+  background: #333;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 11px;
+  color: #fff;
+}
+
+.info-detail .note {
+  margin-top: 10px;
+  font-size: 11px;
+  color: #666;
+  font-style: italic;
+}
+
+@keyframes infoDetailIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fixed-combo {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f5c518;
+  margin: 8px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.fixed-combo kbd {
+  background: #333;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 12px;
+  color: #fff;
+}
+
+.fixed-combo .combo-plus {
+  color: #666;
+  font-size: 11px;
+}
+
+
+.chevron-toggle.info-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #666;
+  font-size: 0;
+  font-style: normal;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  align-self: center;
+}
+
+.chevron-toggle.info-btn:hover,
+.chevron-toggle.info-btn.active {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f5c518;
+}
+
+/* ── Shortcut recorder ───────────────────────────────── */
+.recorder-label {
+  font-size: 12px;
+  color: #aaa;
+  margin: 0 0 8px;
+}
+
+.combo-recorder {
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 14px;
+  border: 1.5px dashed #444;
+  border-radius: 10px;
+  background: #1a1a1a;
+  color: #888;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.combo-recorder:hover,
+.combo-recorder:focus {
+  border-color: #f5c518;
+  color: #f5c518;
+  outline: none;
+}
+
+.combo-recorder.recording {
+  border-style: solid;
+  border-color: #f5c518;
+  color: #f5c518;
+  background: rgba(245, 197, 24, 0.08);
+}
+
+.combo-recorder.has-combo {
+  border-style: solid;
+  border-color: #4ade80;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.06);
+}
+
+.combo-recorder-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.combo-save-btn,
+.reset-btn {
+  margin-top: 0;
+  flex: 1;
+}
+
+.reset-btn {
+  background: transparent;
+  border: 1px solid #444;
+  color: #ccc;
+}
+
+.reset-btn:hover {
+  border-color: #f87171;
+  color: #f87171;
+  opacity: 1;
+}
+
+.save-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#comboStatus.success {
+  color: #4ade80;
+}
+
+#comboStatus.error {
+  color: #f87171;
+}
+
+/* ── Footer ──────────────────────────────────────────── */
+.footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px solid #232323;
+}
+
+.made-with {
+  font-size: 11px;
+  color: #777;
+}
+
+.made-with strong {
+  color: #ccc;
+}
+
+.made-with .heart {
+  color: #ef4444;
+}
+
+.kofi-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #f5c518;
+  text-decoration: none;
+  padding: 7px 12px;
+  border: 1px solid rgba(245, 197, 24, 0.35);
+  border-radius: 20px;
+  background: rgba(245, 197, 24, 0.08);
+  white-space: nowrap;
+  transition: all 0.15s;
+  margin-top: 0;
+  width: auto;
+}
+
+.kofi-btn:hover {
+  background: rgba(245, 197, 24, 0.18);
+  opacity: 1;
+}

@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CineLenz Settings</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="container" id="popupContainer">
+    <div class="header">
+      <img src="icons/icon48.png" alt="logo" class="logo" />
+      <div class="header-titles">
+        <h1>CineLenz</h1>
+        <p class="tagline" id="headerTagline">Movie info at your fingertips</p>
+      </div>
+      <div class="header-icons">
+        <button type="button" class="header-icon-btn info-btn" data-info="howToUseInfo" aria-label="How to use">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+        </button>
+        <button type="button" id="settingsToggle" class="header-icon-btn" title="API Settings" aria-label="API Settings" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+        <a class="header-icon-btn coffee-link" href="https://ko-fi.com/praxwow" target="_blank" rel="noopener noreferrer" title="Support development on Ko-fi">☕</a>
+      </div>
+    </div>
+
+    <!-- ── Main screen ─────────────────────────────────── -->
+    <div class="screen" id="mainView">
+
+      <div class="info-detail how-to-use-card" id="howToUseInfo" hidden>
+        <h3>How to Use</h3>
+        <ol>
+          <li>Hold <strong id="howToComboLabel">Ctrl + Alt + Z</strong>.</li>
+          <li>Cursor becomes a crosshair (+) — scan mode.</li>
+          <li>Click and drag to draw a box around the poster/title.</li>
+          <li>Release mouse — OCR scans the area.</li>
+          <li>Release the keys — crosshair disappears.</li>
+          <li>Or just highlight a title anywhere in text — a Rate button appears next to it.</li>
+        </ol>
+        <p class="note">Works on any website. Try first scan. Works offline (Tesseract) unless you enable Gemini OCR.</p>
+      </div>
+
+
+      <div class="card">
+        <div class="card-row">
+          <div class="icon-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          </div>
+          <div class="card-text">
+            <div class="card-title-row">
+              <span class="card-title">Select-Text Rating Lookup</span>
+              <button type="button" class="info-btn" data-info="textSelectInfo" aria-label="Info">i</button>
+            </div>
+            <div class="card-desc">Lookup movie ratings when you select text.</div>
+          </div>
+          <label class="switch card-control">
+            <input type="checkbox" id="textSelectEnabled" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="info-detail" id="textSelectInfo" hidden>
+          <small>Highlight any movie/show title on a page — a comment, caption, headline — and a <strong>🎬 Rate</strong> button appears next to it. Click it to pull up the rating.</small>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-row">
+          <div class="icon-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="8" height="8" rx="2"></rect>
+              <rect x="14" y="3" width="8" height="8" rx="2"></rect>
+              <rect x="8" y="14" width="8" height="8" rx="2"></rect>
+            </svg>
+          </div>
+          <div class="card-text">
+            <div class="card-title-row">
+              <span class="card-title">Activation Combo</span>
+              <button type="button" class="info-btn" data-info="comboInfo" aria-label="Info">i</button>
+            </div>
+            <div class="card-desc">Use this shortcut to activate CineLenz.</div>
+            <p class="fixed-combo" id="comboPillsDisplay"></p>
+          </div>
+          <button type="button" class="chevron-toggle info-btn card-control" data-info="comboCustomize" aria-label="Customize shortcut">
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 6 15 12 9 18"></polyline></svg>
+          </button>
+        </div>
+        <div class="info-detail" id="comboInfo" hidden>
+          <small>Hold all keys together — cursor becomes a crosshair, drag to select a poster. Tap the arrow to set your own shortcut.</small>
+        </div>
+        <div class="info-detail" id="comboCustomize" hidden>
+          <p class="recorder-label">Click below, then press your new shortcut:</p>
+          <button type="button" class="combo-recorder" id="comboRecorder" tabindex="0">Click here, then press keys…</button>
+          <div class="combo-recorder-actions">
+            <button type="button" id="saveCombo" class="save-btn combo-save-btn" disabled>Save Shortcut</button>
+            <button type="button" id="resetCombo" class="reset-btn">Reset to Default</button>
+          </div>
+          <small id="comboStatus"></small>
+          <small id="comboHint">Needs at least one modifier key (Ctrl/Alt/Shift/Cmd) plus a letter or number.</small>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-row">
+          <div class="icon-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51z"></path></svg>
+          </div>
+          <div class="card-text">
+            <div class="card-title-row">
+              <span class="card-title">Sticky Cursor Mode</span>
+              <button type="button" class="info-btn" data-info="stickyInfo" aria-label="Info">i</button>
+            </div>
+            <div class="card-desc">Keep the cursor in place while scanning.</div>
+          </div>
+          <label class="switch card-control">
+            <input type="checkbox" id="stickyMode" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="info-detail" id="stickyInfo" hidden>
+          <small>When on, press your activation combo once to lock the crosshair on — drag to select without holding the keys. Press the combo again, or <strong>Esc</strong>, to release it.</small>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-row">
+          <div class="icon-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          </div>
+          <div class="card-text">
+            <div class="card-title">Dark Mode Cards</div>
+            <div class="card-desc">Apply dark theme to info cards.</div>
+          </div>
+          <label class="switch card-control">
+            <input type="checkbox" id="darkMode" />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="footer-row">
+        <span class="made-with">Made with <span class="heart">❤</span> by <strong>PraxWow</strong></span>
+      </div>
+    </div>
+
+    <!-- ── Settings screen (slides in over the main screen) ── -->
+    <div class="screen" id="settingsView" hidden>
+      <div class="card intro-card">
+        <div class="card-row">
+          <div class="icon-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.5 19a4.5 4.5 0 0 0 0-9 6 6 0 0 0-11.3-2A5 5 0 0 0 6 19h11.5z"></path></svg>
+          </div>
+          <div class="card-text">
+            <div class="card-title-row">
+              <span class="card-title">API Settings</span>
+              <button type="button" class="info-btn" data-info="apiPrivacyInfo" aria-label="Privacy info">i</button>
+            </div>
+            <div class="card-desc">Configure your movie database and OCR services.</div>
+          </div>
+        </div>
+        <div class="info-detail" id="apiPrivacyInfo" hidden>
+          <small><strong class="privacy-text">Your API keys are stored locally.</strong> We never collect or share your data.</small>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="label-row">
+          <div class="section-heading">
+            <div class="icon-badge icon-badge-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"></ellipse><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"></path><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"></path></svg>
+            </div>
+            <label>Movie Database</label>
+            <button type="button" class="info-btn" data-info="dbInfo" aria-label="Info">i</button>
+          </div>
+        </div>
+        <div class="info-detail" id="dbInfo" hidden>
+          <small>Only the selected database is used for lookups. Both keys are saved, so you can switch anytime.</small>
+        </div>
+        <div class="provider-toggle">
+          <label class="radio-pill">
+            <input type="radio" name="dataSource" id="sourceOmdb" value="omdb" />
+            OMDb
+          </label>
+          <label class="radio-pill">
+            <input type="radio" name="dataSource" id="sourceTmdb" value="tmdb" />
+            TMDB
+          </label>
+        </div>
+
+        <div class="provider-key" id="omdbKeyGroup">
+          <div class="label-row">
+            <label for="apiKey">OMDb API Key</label>
+            <a class="get-key-link" href="https://www.omdbapi.com/apikey.aspx" target="_blank">Get a key ↗</a>
+          </div>
+          <div class="key-input-wrap">
+            <input type="password" id="apiKey" placeholder="Enter your OMDb API key" autocomplete="off" />
+            <button type="button" class="key-toggle-visibility" data-target="apiKey" aria-label="Show or hide key">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="provider-key" id="tmdbKeyGroup">
+          <div class="label-row">
+            <label for="tmdbApiKey">TMDB API Key</label>
+            <a class="get-key-link" href="https://www.themoviedb.org/settings/api" target="_blank">Get a key ↗</a>
+          </div>
+          <div class="key-input-wrap">
+            <input type="password" id="tmdbApiKey" placeholder="Enter your TMDB API key" autocomplete="off" />
+            <button type="button" class="key-toggle-visibility" data-target="tmdbApiKey" aria-label="Show or hide key">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            </button>
+          </div>
+        </div>
+
+        <button id="saveKey" class="save-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><path d="M17 21v-8H7v8M7 3v5h8"></path></svg>
+          Save
+        </button>
+        <div id="keyStatus" class="status"></div>
+      </div>
+
+      <div class="card">
+        <div class="label-row">
+          <div class="section-heading">
+            <div class="icon-badge icon-badge-sm icon-badge-text">A</div>
+            <label>Poster OCR Engine</label>
+            <button type="button" class="info-btn" data-info="ocrEngineInfo" aria-label="Info">i</button>
+          </div>
+        </div>
+        <div class="info-detail" id="ocrEngineInfo" hidden>
+          <small>Tesseract runs fully on-device, free, but struggles with stylized/curvy/3D poster fonts. Gemini reads the poster image directly and handles decorative titles far more accurately, at the cost of sending the cropped screenshot to Google.</small>
+        </div>
+        <div class="provider-toggle">
+          <label class="radio-pill">
+            <input type="radio" name="ocrEngine" id="ocrTesseract" value="tesseract" />
+            Tesseract (offline)
+          </label>
+          <label class="radio-pill">
+            <input type="radio" name="ocrEngine" id="ocrGemini" value="gemini" />
+            Gemini (online)
+          </label>
+        </div>
+
+        <div class="provider-key" id="geminiKeyGroup">
+          <div class="label-row">
+            <label for="geminiApiKey">Gemini API Key</label>
+            <a class="get-key-link" href="https://aistudio.google.com/apikey" target="_blank">Get a key ↗</a>
+          </div>
+          <div class="key-input-wrap">
+            <input type="password" id="geminiApiKey" placeholder="Enter your Gemini API key" autocomplete="off" />
+            <button type="button" class="key-toggle-visibility" data-target="geminiApiKey" aria-label="Show or hide key">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            </button>
+          </div>
+
+          <div class="label-row" style="margin-top:10px;">
+            <div class="card-title-row">
+              <label for="geminiModel" style="margin-bottom:0;">Model</label>
+              <button type="button" class="info-btn" data-info="modelInfo" aria-label="Info">i</button>
+            </div>
+          </div>
+          <div class="info-detail" id="modelInfo" hidden>
+            <small>Fetched live from your Gemini account, so this stays accurate as Google adds or retires models — Flash-Lite variants are listed first (usually the highest free-tier quota). Not all listed models are guaranteed free; check <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com</a> for your exact quota per model.</small>
+          </div>
+          <div class="model-select-row">
+            <select id="geminiModel">
+              <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite (default)</option>
+            </select>
+            <button type="button" id="refreshModels" title="Fetch the current list of models from your Gemini account">⟳</button>
+          </div>
+          <small id="modelListStatus"></small>
+        </div>
+
+        <button id="saveOcrSettings" class="save-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><path d="M17 21v-8H7v8M7 3v5h8"></path></svg>
+          Save OCR Settings
+        </button>
+        <div id="ocrStatus" class="status"></div>
+      </div>
+
+      <div class="footer-row">
+        <span class="made-with">Made with <span class="heart">❤</span> by <strong>PraxWow</strong></span>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
