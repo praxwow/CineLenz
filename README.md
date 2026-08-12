@@ -23,6 +23,4 @@ CineLenz is a Chrome extension that lets you identify any movie or TV show poste
 
 Or, just highlight a title anywhere on the page.
 
-🙏 Big Thanks
-
-Big Thanks to IMDB, OMDB & TMDB.
+🙏 Big Thanks to IMDB, OMDB & TMDB.
