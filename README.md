@@ -1,4 +1,5 @@
 🎬 CineLenz
+
 🎯 Point at a poster. Get the rating from IMDB.
 
 CineLenz is a Chrome extension that lets you identify any movie or TV show poster on the web — and now, any mentioned title — without leaving the page.
