@@ -22,7 +22,7 @@
   let stickyMode = false;
   let textSelectEnabled = true;
   let comboArmed = true;      // ready to fire the next toggle once combo is fully released
-  let ocrEngine = 'tesseract'; // 'tesseract' | 'gemini'
+  let ocrEngine = 'local'; // 'local' (on-device PP-OCR) | 'gemini'
   let geminiApiKey = '';
   let geminiModel = 'gemini-2.5-flash-lite';
 
@@ -56,8 +56,29 @@
   const OVERLAY_CLASS = 'imdb-lens-overlay';
   const SELECT_BTN_CLASS = 'imdb-lens-select-btn';
 
+  const SECRET_SETTING_KEYS = ['omdbApiKey', 'tmdbApiKey', 'ocrSpaceApiKey', 'geminiApiKey'];
+  function readCineLenzSettings(keys, callback) {
+    chrome.storage.local.get(SECRET_SETTING_KEYS, (localSettings) => {
+      chrome.storage.sync.get(keys, (syncSettings) => {
+        const migrated = {};
+        SECRET_SETTING_KEYS.forEach((key) => {
+          if (localSettings[key] === undefined && syncSettings[key] !== undefined) migrated[key] = syncSettings[key];
+        });
+        const finish = () => callback({ ...syncSettings, ...localSettings, ...migrated });
+        const legacyKeys = SECRET_SETTING_KEYS.filter((key) => syncSettings[key] !== undefined);
+        if (Object.keys(migrated).length) {
+          chrome.storage.local.set(migrated, () => chrome.storage.sync.remove(legacyKeys, finish));
+        } else if (legacyKeys.length) {
+          chrome.storage.sync.remove(legacyKeys, finish);
+        } else {
+          finish();
+        }
+      });
+    });
+  }
+
   function loadSettings() {
-    chrome.storage.sync.get(
+    readCineLenzSettings(
       ['omdbApiKey', 'tmdbApiKey', 'dataSource', 'ocrSpaceApiKey', 'darkMode', 'stickyMode', 'textSelectEnabled', 'ocrEngine', 'geminiApiKey', 'geminiModel', 'activationCombo'],
       (res) => {
         apiKey = res.omdbApiKey || '';
@@ -67,7 +88,7 @@
         darkMode = res.darkMode !== false;
         stickyMode = !!res.stickyMode;
         textSelectEnabled = res.textSelectEnabled !== false;
-        ocrEngine = res.ocrEngine === 'gemini' ? 'gemini' : 'tesseract';
+        ocrEngine = res.ocrEngine === 'gemini' ? 'gemini' : 'local';
         geminiApiKey = res.geminiApiKey || '';
         geminiModel = res.geminiModel || 'gemini-2.5-flash-lite';
         activationCombo = res.activationCombo && res.activationCombo.key
@@ -107,6 +128,44 @@
       comboArmed = true;
       exitScanMode();
     }
+  });
+
+  // For suggest.js. Content scripts of one extension share an isolated world,
+  // so this is not reachable from page scripts. Opens the exact title picked
+  // from the autocomplete list, by ID.
+  window.__cineLenzBridge = {
+    async openById(card, id, query) {
+      const movie = await fetchMovieById(id);
+      if (!movie) return false;
+      if (card.isConnected) renderMovieCard(card, movie, query);
+      return true;
+    }
+  };
+
+  // Right-click lookup (sent by background.js). Deliberately ignores
+  // textSelectEnabled: that toggle only controls the floating Rate button.
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (!msg || msg.action !== 'contextMenuLookup') return;
+    const text = String(msg.text || '').trim().replace(/\s+/g, ' ');
+    // Anchor the card to the selection when it's visible in this frame;
+    // otherwise (selection inside a text box or an iframe) use a neutral spot.
+    let x = Math.max(12, Math.round((window.innerWidth - 340) / 2));
+    let y = 80;
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount) {
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      if (rect && (rect.width > 0 || rect.height > 0)) {
+        x = rect.left;
+        y = rect.bottom + 8;
+      }
+    }
+    removeSelectBtn(); // don't leave the floating button up next to the card
+    if (text.length < 2) return;
+    if (text.length > 100) {
+      showErrorCard(x, y, 'That selection is too long to be a title. Select just the movie or show name.');
+      return;
+    }
+    processTextSelection(text, x, y);
   });
 
   // ─── Key Tracking ──────────────────────────────────────
@@ -433,14 +492,14 @@
 
       // Gemini path: a vision model reads the poster directly, so it
       // handles stylized/curvy/3D movie-logo typography that trips up
-      // Tesseract's character-shape based engine. Tried first when
-      // configured; falls through to the offline Tesseract pipeline below
+      // classic character-shape OCR. Tried first when
+      // configured; falls through to the offline OCR pipeline below
       // if it errors out or can't find a match (e.g. rate limit hit).
       if (ocrEngine === 'gemini' && geminiApiKey) {
         showLoading(card, 'Reading poster with Gemini...', cancelOpts);
 
         // A tight title crop can be genuinely tiny in raw pixels (e.g. a
-        // 140x30 selection) — great for Tesseract, but it starves a vision
+        // 140x30 selection) — fine for local OCR, but it starves a vision
         // model's tokenizer of detail on decorative/3D letterforms. Scale
         // small crops up before sending; never shrinks an already-large one.
         const geminiImage = await upscaleForGemini(croppedImage);
@@ -477,7 +536,7 @@
             }
           }
         } else if (geminiResult.error) {
-          console.warn('[CineLenz] Gemini OCR failed, falling back to Tesseract:', geminiResult.error);
+          console.warn('[CineLenz] Gemini OCR failed, falling back to offline OCR:', geminiResult.error);
         }
         showLoading(card, 'Gemini had no confident match, falling back to offline OCR...', cancelOpts);
       }
@@ -584,46 +643,56 @@
     });
   }
 
-  // Tier 1 ("fast"): the read modes most likely to nail a typical poster
-  // title on the first try — single-line mode (best for compact/small
-  // title text) plus the sparse-text mode that historically did the most
-  // work. Tier 2 ("thorough"): broader fallback for stacked multi-line
-  // titles, inverted contrast, and variable font sizes — only run if tier
-  // 1 doesn't produce a confident match.
+  // PP-OCR finds the text regions itself, so it prefers natural-looking
+  // pixels over hard binarisation. Tier 1 ("fast"): the plain upscaled crop
+  // and a contrast-stretched copy — enough for most posters. Tier 2
+  // ("thorough"): binarised variants (bright-on-dark and dark-on-light),
+  // only run if tier 1 doesn't produce a confident match.
   function buildOcrAttempts(images) {
     return {
       fast: [
-        { image: images.adaptiveDark, psm: '7' },   // single line, dark strokes on a lighter patch
-        { image: images.adaptiveLight, psm: '7' },  // single line, bright/white strokes on a dark patch
-        { image: images.enhanced, psm: '7' },
-        { image: images.adaptiveDark, psm: '11' }   // sparse text, dark strokes on a lighter patch
+        { image: images.original },
+        { image: images.enhanced }
       ],
       thorough: [
-        { image: images.adaptiveLight, psm: '11' }, // sparse text, bright/white strokes on a dark patch
-        { image: images.adaptiveDark, psm: '6' },   // uniform block: stacked multi-line titles
-        { image: images.adaptiveLight, psm: '6' },
-        { image: images.enhanced, psm: '4' },       // single column, variable font sizes: multi-line taglines/titles
-        { image: images.original, psm: '11' }
+        { image: images.adaptiveLight },  // bright/white strokes on a dark patch
+        { image: images.adaptiveDark }    // dark strokes on a lighter patch
       ]
     };
   }
 
+  // Backstop for a stalled engine: resolve with an error instead of waiting forever.
+  function withTimeout(promise, ms, message) {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve({ error: message, timedOut: true }), ms);
+      promise.then((value) => { clearTimeout(timer); resolve(value); });
+    });
+  }
+
   async function runOcrPasses(attempts, setStatus, passOffset, totalPasses, card) {
     const readings = [];
+    let lastError = '';
     for (let index = 0; index < attempts.length; index += 1) {
       if (card && isCancelled(card)) break; // user hit stop — don't keep grinding or re-render over the manual box
       const attempt = attempts[index];
       setStatus(`Reading poster text (pass ${passOffset + index + 1} of ${totalPasses})...`);
-      const result = await sendMessage({
+      const result = await withTimeout(sendMessage({
         action: 'ocrRecognize',
         imageDataUrl: attempt.image,
         psm: attempt.psm
-      });
+      }), 30000, 'The OCR engine did not respond in time.');
       if (card && isCancelled(card)) break;
-      if (result && result.error) continue; // fall through to remaining passes
+      if (result && result.error) {
+        console.warn('[CineLenz] OCR pass failed:', result.error);
+        lastError = result.error;
+        if (result.timedOut) break; // a stalled engine won't answer the next pass either
+        continue; // fall through to remaining passes
+      }
       const text = cleanOcrText((result && result.text) || '');
       if (text) readings.push({ text, confidence: Number(result.confidence) || 0 });
     }
+    // Every pass failed: say why, rather than pretending nothing was found.
+    if (!readings.length && lastError && !(card && isCancelled(card))) throw new Error(lastError);
     return readings;
   }
 
@@ -668,7 +737,7 @@
     const image = await loadImage(dataUrl);
     const longestSide = Math.max(image.naturalWidth, image.naturalHeight);
     // Small selections (a tight crop around small poster lettering) need a
-    // much bigger upscale than large ones to give Tesseract enough pixel
+    // much bigger upscale than large ones to give the OCR engine enough pixel
     // height per character. The old flat 3x cap left tiny text still tiny
     // after upscaling; this scales harder the smaller the crop is, then
     // clamps the final canvas so huge selections don't balloon in memory.
@@ -730,7 +799,7 @@
         const isDarkText = luminance < localMean - adaptiveOffset;   // dark strokes on a lighter patch
         const isLightText = luminance > localMean + adaptiveOffset;  // bright/white strokes on a darker patch
         const darkOut = isDarkText ? 0 : 255;
-        const lightOut = isLightText ? 0 : 255; // normalized to Tesseract's preferred dark-text-on-light convention
+        const lightOut = isLightText ? 0 : 255; // normalized to dark-text-on-light
 
         enhancedImage.data[pixel] = enhancedImage.data[pixel + 1] = enhancedImage.data[pixel + 2] = contrast;
         enhancedImage.data[pixel + 3] = 255;
@@ -992,6 +1061,7 @@
       Title: m.Title,
       Poster: m.Poster,
       imdbRating: m.imdbRating,
+      ratingSourceLabel: 'IMDb',
       Year: m.Year,
       Runtime: m.Runtime,
       Genre: m.Genre,
@@ -1048,6 +1118,7 @@
       Title: title,
       Poster: m.poster_path ? (TMDB_IMG_BASE + m.poster_path) : 'N/A',
       imdbRating: typeof m.vote_average === 'number' && m.vote_average > 0 ? m.vote_average.toFixed(1) : 'N/A',
+      ratingSourceLabel: 'TMDB',
       Year: year,
       Runtime: runtime,
       Genre: genreNames.length ? genreNames.join(', ') : 'N/A',
@@ -1386,16 +1457,18 @@
 
   function renderMovieCard(card, movie, ocrText) {
     const genres = (movie.Genre || 'N/A').split(',').map(g => g.trim());
-    const detailUrl = movie.detailUrl || '#';
+    const detailUrl = safeExternalUrl(movie.detailUrl, ['www.imdb.com', 'imdb.com', 'www.themoviedb.org', 'themoviedb.org']) || '#';
+    const posterUrl = movie.Poster !== 'N/A' ? (safeExternalUrl(movie.Poster, ['image.tmdb.org', 'm.media-amazon.com']) || '') : '';
+    const ratingSourceLabel = movie.ratingSourceLabel || (dataSource === 'tmdb' ? 'TMDB' : 'IMDb');
     const linkLabel = movie.linkLabel || 'View on IMDb';
 
     getCardBody(card).innerHTML = `
       <button class="imdb-lens-close" title="Close">×</button>
       <div class="imdb-lens-header">
-        <img class="imdb-lens-poster" src="` + (movie.Poster !== 'N/A' ? movie.Poster : '') + `"
+        <img class="imdb-lens-poster" src="` + escapeHtml(posterUrl) + `"
              alt="` + escapeHtml(movie.Title) + `" onerror="this.style.display='none'" />
         <div class="imdb-lens-meta">
-          <div class="imdb-lens-title" data-url="` + detailUrl + `">
+          <div class="imdb-lens-title" data-url="` + escapeHtml(detailUrl) + `">
             ` + escapeHtml(movie.Title) + `
             <svg class="imdb-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
@@ -1404,9 +1477,9 @@
             </svg>
           </div>
           <div class="imdb-lens-rating">
-            <span class="star">★</span> ` + (movie.imdbRating !== 'N/A' ? movie.imdbRating : '?') + `
+            <span class="star">★</span> ` + (movie.imdbRating !== 'N/A' ? escapeHtml(movie.imdbRating) : '?') + ` <span class="imdb-lens-rating-source">` + escapeHtml(ratingSourceLabel) + `</span>
           </div>
-          <div class="imdb-lens-year">` + movie.Year + ' · ' + (movie.Runtime !== 'N/A' ? movie.Runtime : '') + `</div>
+          <div class="imdb-lens-year">` + escapeHtml(movie.Year || 'N/A') + ' · ' + escapeHtml(movie.Runtime !== 'N/A' ? (movie.Runtime || '') : '') + `</div>
           <div class="imdb-lens-year-picker" id="imdb-lens-year-picker"></div>
           <div class="imdb-lens-genres">
             ` + genres.map(g => '<span class="imdb-lens-genre-tag">' + escapeHtml(g) + '</span>').join('') + `
@@ -1415,7 +1488,7 @@
       </div>
       <div class="imdb-lens-plot">` + escapeHtml(movie.Plot || 'No plot available.') + `</div>
       ` + (ocrText ? '<div class="imdb-lens-ocr-text">Detected: "' + escapeHtml(ocrText) + '"</div>' : '') + `
-      <a class="imdb-lens-view-btn" href="` + detailUrl + `" target="_blank" rel="noopener noreferrer">
+      <a class="imdb-lens-view-btn" href="` + escapeHtml(detailUrl) + `" target="_blank" rel="noopener noreferrer">
         ` + escapeHtml(linkLabel) + `
         <svg class="imdb-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
@@ -1435,7 +1508,7 @@
         <div class="imdb-lens-manual-status" id="imdb-lens-manual-status"></div>
       </div>`;
 
-    card.querySelector('.imdb-lens-title').addEventListener('click', () => window.open(detailUrl, '_blank'));
+    card.querySelector('.imdb-lens-title').addEventListener('click', () => { if (detailUrl !== '#') window.open(detailUrl, '_blank', 'noopener,noreferrer'); });
     card.querySelector('.imdb-lens-close').addEventListener('click', () => card.remove());
 
     let closeTimer = setTimeout(() => card.remove(), 15000);
@@ -1569,6 +1642,17 @@
     });
 
     card.querySelector('#imdb-lens-manual-input').focus();
+  }
+
+  function safeExternalUrl(value, allowedHosts) {
+    if (typeof value !== 'string' || !value) return '';
+    try {
+      const url = new URL(value, window.location.href);
+      if (url.protocol !== 'https:' || !allowedHosts.includes(url.hostname.toLowerCase())) return '';
+      return url.href;
+    } catch {
+      return '';
+    }
   }
 
   function escapeHtml(text) {

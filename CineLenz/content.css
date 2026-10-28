@@ -315,6 +315,18 @@
   background: #ffd83d;
 }
 
+/* Keep the IMDb/TMDB result link readable on webpages with aggressive global
+   anchor/link styles. Black text is intentional for the yellow button in every
+   link state, including hover, focus, visited, and active. */
+.imdb-lens-card.imdb-lens-card .imdb-lens-view-btn,
+.imdb-lens-card.imdb-lens-card .imdb-lens-view-btn:link,
+.imdb-lens-card.imdb-lens-card .imdb-lens-view-btn:visited,
+.imdb-lens-card.imdb-lens-card .imdb-lens-view-btn:hover,
+.imdb-lens-card.imdb-lens-card .imdb-lens-view-btn:focus,
+.imdb-lens-card.imdb-lens-card .imdb-lens-view-btn:active {
+  color: #000 !important;
+}
+
 .imdb-lens-view-btn:active {
   transform: scale(0.98);
 }

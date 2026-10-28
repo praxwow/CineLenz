@@ -43,7 +43,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     })
     .then(res => res.json())
     .then(data => {
-      console.log('[CineLenz] OCR response:', data);
       if (data.IsErroredOnProcessing) {
         sendResponse({ error: data.ErrorMessage || 'OCR processing error' });
       } else if (!data.ParsedResults || data.ParsedResults.length === 0) {
@@ -54,7 +53,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
     })
     .catch(err => {
-      console.error('[CineLenz] OCR fetch error:', err);
+      console.error('[CineLenz] OCR request failed.');
       sendResponse({ error: err.message || 'OCR network error' });
     });
 
@@ -103,7 +102,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ models });
       })
       .catch(err => {
-        console.error('[CineLenz] listGeminiModels fetch error:', err);
+        console.error('[CineLenz] Gemini model-list request failed.');
         sendResponse({ error: err.message || 'Gemini network error' });
       });
 
@@ -112,7 +111,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   // Gemini vision-based OCR. Sends the cropped poster image straight to
   // the Gemini API and asks it to transcribe the title text. Unlike
-  // Tesseract, Gemini reads the image semantically, so stylized, curvy,
+  // local OCR, Gemini reads the image semantically, so stylized, curvy,
   // and 3D movie-logo fonts that break classic OCR are usually fine.
   if (request.action === 'geminiOcr') {
     const { imageDataUrl, apiKey, model } = request;
@@ -187,7 +186,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ text: finalGuesses[0] || '', guesses: finalGuesses });
     })
     .catch(err => {
-      console.error('[CineLenz] Gemini OCR fetch error:', err);
+      console.error('[CineLenz] Gemini OCR request failed.');
       sendResponse({ error: err.message || 'Gemini network error' });
     });
 
@@ -243,7 +242,7 @@ function ensureOffscreenDocument() {
       await chrome.offscreen.createDocument({
         url: 'offscreen.html',
         reasons: ['WORKERS'],
-        justification: 'Run the bundled Tesseract OCR engine to read movie poster titles offline.'
+        justification: 'Run the bundled PP-OCR engine (ONNX Runtime Web) to read movie poster titles offline.'
       });
     })().catch((err) => {
       ensureOffscreenPromise = null; // allow retry on failure
@@ -260,4 +259,43 @@ chrome.tabs.onActivated.addListener(() => {
       chrome.tabs.sendMessage(tabs[0].id, { action: 'settingsUpdated' }).catch(() => {});
     }
   });
+});
+
+
+// ─── Right-click lookup ─────────────────────────────────────────────
+// "CineLenz: Get rating for <selection>" in the page's context menu. It works
+// regardless of the "Select-Text Rating Lookup" toggle, which only controls
+// the floating Rate button.
+const LOOKUP_MENU_ID = 'cinelenz-lookup';
+
+chrome.runtime.onInstalled.addListener(() => {
+  // removeAll first so an update/reload can never leave a duplicate entry.
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: LOOKUP_MENU_ID,
+      title: 'CineLenz: Get rating for "%s"',
+      contexts: ['selection']
+    });
+  });
+});
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId !== LOOKUP_MENU_ID || !tab || tab.id === undefined) return;
+  const message = { action: 'contextMenuLookup', text: info.selectionText || '' };
+  try {
+    await chrome.tabs.sendMessage(tab.id, message, { frameId: 0 });
+  } catch (err) {
+    // Tabs that were already open when the extension was installed or reloaded
+    // have no content script yet: inject it, give it a moment to load its
+    // settings, then try once more.
+    try {
+      await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: ['content.css', 'suggest.css'] });
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js', 'suggest.js'] });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await chrome.tabs.sendMessage(tab.id, message, { frameId: 0 });
+    } catch (injectErr) {
+      // Restricted pages (chrome://, the Web Store, PDFs viewer...) can't be scripted.
+      console.warn('[CineLenz] Could not start a lookup on this page:', injectErr && injectErr.message);
+    }
+  }
 });

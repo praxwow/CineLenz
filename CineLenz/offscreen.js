@@ -1,30 +1,48 @@
-// Runs inside the offscreen document (an extension page). Unlike content.js,
-// this page's origin IS chrome-extension://<id>, so Tesseract.js can
-// construct its Worker directly instead of being blocked as cross-origin.
+// Runs inside the offscreen document (an extension page) and hosts the
+// on-device OCR engine: PaddleOCR's PP-OCRv6 "tiny" models executed by
+// ONNX Runtime Web (WebAssembly). Nothing leaves the device.
 //
-// OCR is English-only by design (single 'eng' language pack).
+// The message contract with background.js / content.js is unchanged from the
+// previous engine: 'ocrEnsureReady' warms the models up, and 'ocrRecognize'
+// takes an image data URL and answers { text, confidence } (confidence 0-100).
 
-let ocrWorkerPromise = null;
+const MODEL_DIR = 'ocr/models/';
+let enginePromise = null;
 
 function extensionUrl(path) {
   return chrome.runtime.getURL(path);
 }
 
-async function getOcrWorker() {
-  if (!self.Tesseract) throw new Error('The bundled OCR engine did not load.');
-  if (!ocrWorkerPromise) {
-    ocrWorkerPromise = self.Tesseract.createWorker('eng', 1, {
-      workerPath: extensionUrl('vendor/worker.min.js'),
-      corePath: extensionUrl('vendor'),
-      langPath: extensionUrl('ocr-data'),
-      workerBlobURL: false,
-      cacheMethod: 'write'
-    }).catch((error) => {
-      ocrWorkerPromise = null;
+async function fetchBytes(path) {
+  const response = await fetch(extensionUrl(path));
+  if (!response.ok) throw new Error('Missing OCR file: ' + path);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+function getEngine() {
+  if (!enginePromise) {
+    enginePromise = (async () => {
+      if (!self.ort || !self.PPOCR) throw new Error('The bundled OCR engine did not load.');
+      // Single-threaded WASM: multi-threading needs cross-origin isolation,
+      // which extension pages don't have by default.
+      self.ort.env.wasm.numThreads = 1;
+      self.ort.env.wasm.proxy = false;
+      self.ort.env.wasm.wasmPaths = {
+        mjs: extensionUrl('ocr/ort/ort-wasm-simd-threaded.mjs'),
+        wasm: extensionUrl('ocr/ort/ort-wasm-simd-threaded.wasm')
+      };
+      const [detModel, recModel, dictionaryText] = await Promise.all([
+        fetchBytes(MODEL_DIR + 'PP-OCRv6_tiny_det.onnx'),
+        fetchBytes(MODEL_DIR + 'PP-OCRv6_tiny_rec.onnx'),
+        fetch(extensionUrl(MODEL_DIR + 'ppocrv6_tiny_dict.txt')).then((r) => r.text())
+      ]);
+      return self.PPOCR.createEngine({ ort: self.ort, detModel, recModel, dictionaryText });
+    })().catch((error) => {
+      enginePromise = null; // allow a retry on the next request
       throw error;
     });
   }
-  return ocrWorkerPromise;
+  return enginePromise;
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -33,7 +51,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'ocrEnsureReady') {
     (async () => {
       try {
-        await getOcrWorker();
+        await getEngine();
         sendResponse({ ready: true });
       } catch (error) {
         sendResponse({ error: error.message || 'Failed to load the OCR engine.' });
@@ -45,14 +63,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'ocrRecognize') {
     (async () => {
       try {
-        const worker = await getOcrWorker();
-        await worker.setParameters({
-          tessedit_pageseg_mode: msg.psm,
-          preserve_interword_spaces: '1',
-          user_defined_dpi: '300'
-        });
-        const { data } = await worker.recognize(msg.imageDataUrl);
-        sendResponse({ text: data.text || '', confidence: Number(data.confidence) || 0 });
+        const engine = await getEngine();
+        const result = await engine.recognize(msg.imageDataUrl);
+        sendResponse({ text: result.text || '', confidence: Number(result.confidence) || 0 });
       } catch (error) {
         sendResponse({ error: error.message || 'OCR failed' });
       }

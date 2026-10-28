@@ -40,7 +40,7 @@
           <li>Release the keys — crosshair disappears.</li>
           <li>Or just highlight a title anywhere in text — a Rate button appears next to it.</li>
         </ol>
-        <p class="note">Works on any website. Try first scan. Works offline (Tesseract) unless you enable Gemini OCR.</p>
+        <p class="note">Works on any website. Try first scan. Works offline (on-device PP-OCR) unless you enable Gemini OCR.</p>
       </div>
 
 
@@ -62,7 +62,7 @@
           </label>
         </div>
         <div class="info-detail" id="textSelectInfo" hidden>
-          <small>Highlight any movie/show title on a page — a comment, caption, headline — and a <strong>🎬 Rate</strong> button appears next to it. Click it to pull up the rating.</small>
+          <small>Highlight any movie/show title on a page — a comment, caption, headline — and a <strong>🎬 Rate</strong> button appears next to it. Click it to pull up the rating. Prefer no floating button? Turn this off — you can still right-click any selected text and choose <strong>CineLenz: Get rating</strong>.</small>
         </div>
       </div>
 
@@ -141,6 +141,8 @@
       </div>
 
       <div class="footer-row">
+        <a class="privacy-policy-link" href="https://gencraftz.blogspot.com/p/privacy-policy.html" target="_blank" rel="noopener noreferrer">Privacy Policy ↗</a>
+        <a class="privacy-policy-link" href="https://gencraftz.blogspot.com/2026/09/cinelenz-chrome-extension-for-instant.html" target="_blank" rel="noopener noreferrer" title="Read about CineLenz">About CineLenz ↗</a>
         <span class="made-with">Made with <span class="heart">❤</span> by <strong>PraxWow</strong></span>
       </div>
     </div>
@@ -161,7 +163,7 @@
           </div>
         </div>
         <div class="info-detail" id="apiPrivacyInfo" hidden>
-          <small><strong class="privacy-text">Your API keys are stored locally.</strong> We never collect or share your data.</small>
+          <small><strong class="privacy-text">Your API keys are stored in this browser profile, not synced across Chrome devices.</strong> CineLenz sends movie-search queries to your selected provider. If you enable Gemini or OCR.Space, the selected image crop is sent to that service for OCR. Read the <a href="https://gencraftz.blogspot.com/p/privacy-policy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a> for details. Read <a href="https://gencraftz.blogspot.com/2026/09/cinelenz-chrome-extension-for-instant.html" target="_blank" rel="noopener noreferrer">About CineLenz</a> for the feature overview.</small>
         </div>
       </div>
 
@@ -231,12 +233,12 @@
           </div>
         </div>
         <div class="info-detail" id="ocrEngineInfo" hidden>
-          <small>Tesseract runs fully on-device, free, but struggles with stylized/curvy/3D poster fonts. Gemini reads the poster image directly and handles decorative titles far more accurately, at the cost of sending the cropped screenshot to Google.</small>
+          <small>PP-OCR runs fully on-device and is free, but can still struggle with very stylized/curvy/3D poster fonts. Gemini reads the poster image directly and handles decorative titles far more accurately, at the cost of sending the cropped screenshot to Google.</small>
         </div>
         <div class="provider-toggle">
           <label class="radio-pill">
-            <input type="radio" name="ocrEngine" id="ocrTesseract" value="tesseract" />
-            Tesseract (offline)
+            <input type="radio" name="ocrEngine" id="ocrLocal" value="local" />
+            PP-OCR (offline)
           </label>
           <label class="radio-pill">
             <input type="radio" name="ocrEngine" id="ocrGemini" value="gemini" />
@@ -282,6 +284,8 @@
       </div>
 
       <div class="footer-row">
+        <a class="privacy-policy-link" href="https://gencraftz.blogspot.com/p/privacy-policy.html" target="_blank" rel="noopener noreferrer">Privacy Policy ↗</a>
+        <a class="privacy-policy-link" href="https://gencraftz.blogspot.com/2026/09/cinelenz-chrome-extension-for-instant.html" target="_blank" rel="noopener noreferrer" title="Read about CineLenz">About CineLenz ↗</a>
         <span class="made-with">Made with <span class="heart">❤</span> by <strong>PraxWow</strong></span>
       </div>
     </div>

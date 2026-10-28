@@ -888,12 +888,28 @@ input:checked + .slider:before {
 .footer-row {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
   margin-top: 2px;
   padding-top: 10px;
   border-top: 1px solid #232323;
+}
+
+.privacy-policy-link {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  color: #f5c518;
+  text-decoration: none;
+  border-radius: 3px;
+}
+
+.privacy-policy-link:hover,
+.privacy-policy-link:focus-visible {
+  color: #ffe27a;
+  text-decoration: underline;
+  outline-offset: 2px;
 }
 
 .made-with {
@@ -931,3 +947,6 @@ input:checked + .slider:before {
   background: rgba(245, 197, 24, 0.18);
   opacity: 1;
 }
+
+/* Keep the rating provider label legible without competing with the score. */
+.imdb-lens-rating-source { font-size: 10px; font-weight: 600; color: currentColor; opacity: .78; }

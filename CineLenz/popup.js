@@ -36,6 +36,27 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  const SECRET_SETTING_KEYS = ['omdbApiKey', 'tmdbApiKey', 'ocrSpaceApiKey', 'geminiApiKey'];
+  function readCineLenzSettings(keys, callback) {
+    chrome.storage.local.get(SECRET_SETTING_KEYS, (localSettings) => {
+      chrome.storage.sync.get(keys, (syncSettings) => {
+        const migrated = {};
+        SECRET_SETTING_KEYS.forEach((key) => {
+          if (localSettings[key] === undefined && syncSettings[key] !== undefined) migrated[key] = syncSettings[key];
+        });
+        const finish = () => callback({ ...syncSettings, ...localSettings, ...migrated });
+        const legacyKeys = SECRET_SETTING_KEYS.filter((key) => syncSettings[key] !== undefined);
+        if (Object.keys(migrated).length) {
+          chrome.storage.local.set(migrated, () => chrome.storage.sync.remove(legacyKeys, finish));
+        } else if (legacyKeys.length) {
+          chrome.storage.sync.remove(legacyKeys, finish);
+        } else {
+          finish();
+        }
+      });
+    });
+  }
+
   // API Settings screen: all provider keys/engine config live behind the
   // gear icon as a separate "card" that slides in over the main screen
   // (rather than expanding inline below it), so the popup always shows
@@ -43,8 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // persistent header for both screens — the gear button itself morphs
   // into a back arrow (same element, swapped icon) rather than showing a
   // second duplicate header bar inside the settings screen. Values are
-  // still saved to chrome.storage.sync as soon as you hit Save/Save OCR
-  // Settings inside it, same as before.
+  // API credentials are stored locally; non-secret preferences sync across Chrome.
   const settingsToggleBtn = document.getElementById('settingsToggle');
   const popupContainer = document.getElementById('popupContainer');
   const mainView = document.getElementById('mainView');
@@ -124,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const stickyModeToggle = document.getElementById('stickyMode');
   const textSelectToggle = document.getElementById('textSelectEnabled');
 
-  const ocrTesseractRadio = document.getElementById('ocrTesseract');
+  const ocrLocalRadio = document.getElementById('ocrLocal');
   const ocrGeminiRadio = document.getElementById('ocrGemini');
   const geminiKeyGroup = document.getElementById('geminiKeyGroup');
   const geminiApiKeyInput = document.getElementById('geminiApiKey');
@@ -191,7 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
     geminiKeyGroup.classList.toggle('is-inactive', !ocrGeminiRadio.checked);
   }
 
-  chrome.storage.sync.get(
+  readCineLenzSettings(
     ['omdbApiKey', 'tmdbApiKey', 'dataSource', 'darkMode', 'stickyMode', 'textSelectEnabled', 'ocrEngine', 'geminiApiKey', 'geminiModel'],
     (result) => {
       if (result.omdbApiKey) apiKeyInput.value = result.omdbApiKey;
@@ -205,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
       textSelectToggle.checked = result.textSelectEnabled !== false;
 
       const isGemini = result.ocrEngine === 'gemini';
-      ocrTesseractRadio.checked = !isGemini;
+      ocrLocalRadio.checked = !isGemini;
       ocrGeminiRadio.checked = isGemini;
       if (result.geminiApiKey) geminiApiKeyInput.value = result.geminiApiKey;
       savedGeminiModel = result.geminiModel || '';
@@ -222,7 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   sourceOmdbRadio.addEventListener('change', applyProviderVisibility);
   sourceTmdbRadio.addEventListener('change', applyProviderVisibility);
-  ocrTesseractRadio.addEventListener('change', applyOcrVisibility);
+  ocrLocalRadio.addEventListener('change', applyOcrVisibility);
   ocrGeminiRadio.addEventListener('change', applyOcrVisibility);
   refreshModelsBtn.addEventListener('click', () => refreshModelList(false));
 
@@ -241,23 +261,25 @@ document.addEventListener('DOMContentLoaded', () => {
   geminiApiKeyInput.addEventListener('paste', scheduleAutoRefresh);
 
   saveOcrBtn.addEventListener('click', () => {
-    const ocrEngine = ocrGeminiRadio.checked ? 'gemini' : 'tesseract';
+    const ocrEngine = ocrGeminiRadio.checked ? 'gemini' : 'local';
     const geminiApiKey = geminiApiKeyInput.value.trim();
     const geminiModel = geminiModelSelect.value;
 
     if (ocrEngine === 'gemini' && !geminiApiKey) {
-      ocrStatusDiv.textContent = 'Please enter a Gemini API key, or switch back to Tesseract.';
+      ocrStatusDiv.textContent = 'Please enter a Gemini API key, or switch back to PP-OCR.';
       ocrStatusDiv.className = 'status error';
       setTimeout(() => { ocrStatusDiv.textContent = ''; ocrStatusDiv.className = 'status'; }, 3000);
       return;
     }
 
-    chrome.storage.sync.set({ ocrEngine, geminiApiKey, geminiModel }, () => {
+    chrome.storage.local.set({ geminiApiKey }, () => {
+      chrome.storage.sync.set({ ocrEngine, geminiModel }, () => {
       savedGeminiModel = geminiModel;
       ocrStatusDiv.textContent = 'OCR settings saved!';
       ocrStatusDiv.className = 'status success';
       setTimeout(() => { ocrStatusDiv.textContent = ''; ocrStatusDiv.className = 'status'; }, 3000);
       notifyAllTabs({ action: 'settingsUpdated' });
+      });
     });
   });
 
@@ -272,9 +294,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    chrome.storage.sync.set({ omdbApiKey: omdbKey, tmdbApiKey: tmdbKey, dataSource }, () => {
-      showStatus('Settings saved!', 'success');
-      notifyAllTabs({ action: 'settingsUpdated' });
+    chrome.storage.local.set({ omdbApiKey: omdbKey, tmdbApiKey: tmdbKey }, () => {
+      chrome.storage.sync.set({ dataSource }, () => {
+        showStatus('Settings saved!', 'success');
+        notifyAllTabs({ action: 'settingsUpdated' });
+      });
     });
   });
 
